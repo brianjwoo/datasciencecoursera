@@ -1,0 +1,86 @@
+---
+title: "Coursera Machine Learning"
+author: "B"
+date: "Friday, August 22, 2014"
+---
+
+This document is prepared for the Coursera Machine Learning course project. In this project, we are provided data collected from accelerometers placed on 6 individuals performeing barbell lifts either correctly or incorrectly. In our training set, we are given a 'classe' variable which determines how the individuals performed on these exercises. The purpose of this exercise is to create a model from this data that is capable of evaluating whether individuals are performing exercises correctly using measuerements collected by an accelerometer. In this analysis, we utilize the caret package and the Random Forest model. To accomplish this, we also use doParrallel library, as the random Forest algorithm with large numbers of factor variables can be computationally expensive. We specifically choose to use the random Forest model due to the fact that this problem is a multiple classification problem and this method is fairly flexible. 
+
+In the first code chunk, we read in the neccessary libraries.
+
+```{r}
+library(caret)
+library(randomForest)
+library(doParallel)
+registerDoParallel(cores = detectCores())
+
+```
+
+Next, we read in the provided training data, using the read.csv method. A quick inspection showed that the data contains a number of columns that contain numerous NA or empty string variables. Therefore we specificy during the import of the data to mark these as NA, so they can be removed later on during our data cleaning process. Furthermore, we take a quick look at the size of the training set provided and the distribution factor we are interested in predicting. 
+
+
+```{r}
+training <- read.csv("~/R/Coursera/Machine Learning/pml-training.csv", na.strings = c("NA", ""))
+dim(training)
+
+table(training$classe)
+
+```
+
+To explore the data further, we examine the structure of the training data to determine the types of varibles we are using. We also use the summary function to see how many NA variables may be present in our data. The head function would also be a good approach but we currently have too many columns to view.
+
+```{r, echo=FALSE}
+
+str(training)
+summary(training)
+
+
+```
+
+Because the majority of columns contain NA values, we use an apply function to determine which columns contain over 50% NA values. These then removed from our data set.
+```{r}
+NA_cols_index<- apply(training, 2, function(x) sum(is.na(x))/length(x) > .5)
+training.subset <- training[,!NA_cols_index]
+dim(training.subset)
+
+```
+
+As we have now removed 100 columns from our dataset. We can now perform another quick inspection with the summary function and look to remove additional variables. There are 5 more variables in our data set that may be not be useful, specifically the index variable, user names, and data providing time information. We will manually remove these columns we suspect they may not be that useful for our model and this may also reduce the time neccessary to train our model.
+
+
+
+```{r}
+training.subset <- training.subset[,-(1:5)]
+```
+
+Next, we proceed to partitioning our data into a training and a testing set and check the dimensions to ensure they sum up to the original data set.
+
+
+```{r}
+training.partition.index <- createDataPartition(training.subset$classe, p=.7, list=FALSE)
+training.partition <- training.subset[training.partition.index,]
+testing.partition <- training.subset[-training.partition.index,]
+
+dim(training.partition)
+dim(testing.partition)
+```
+
+
+Next, we set our training control parameters and use the train function that is part of caret to perform our training with the Random Forest(rf) model. We quickly inspect our model and then proceed with the prediction on the subset of our data that was left for testing. Next, we generate the confusion matrix to examine the accuracy of our model. 
+
+```{r}
+trControl = trainControl(method='cv',number=4, allowParallel = TRUE, verbose = TRUE)
+
+activity_model.rf <- train(classe ~ ., data=training.partition, method = 'rf', trControl = trControl)
+activity_model.rf
+activity_model.test_prediction <- predict(activity_model.rf, newdata=testing.partition)
+
+confusionMatrix(activity_model.test_prediction, testing.partition$classe)
+
+```
+
+From the confusion Matrix, we can see that the model generated is fairly accurate and this model can be used to predict the real test set for this project.
+
+
+
+
